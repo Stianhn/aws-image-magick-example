@@ -2,7 +2,7 @@
 set -e
 
 cd /root
-curl http://prdownloads.sourceforge.net/libpng/libpng-1.6.37.tar.xz -L -o tmp-libpng.tar.xz
+curl http://prdownloads.sourceforge.net/libpng/libpng-1.6.44.tar.xz -L -o tmp-libpng.tar.xz
 tar xf tmp-libpng.tar.xz
 cd libpng*
 
