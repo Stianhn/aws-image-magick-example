@@ -11,13 +11,31 @@ RUN dnf update -y && \
         libtool \
         autoconf \
         automake \
-        cmake
+        cmake \
+        git \
+        tar \
+        make \
+        gcc \
+        gcc-c++ \
+        flex \
+        bison
+
+ENV PREFIX=/usr/local
+ENV PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig"
+
+RUN cd /tmp && \
+    wget https://download.gnome.org/sources/libxml2/2.10/libxml2-2.10.3.tar.xz && \
+    tar xvJf libxml2-2.10.3.tar.xz && \
+    cd libxml2-2.10.3 && \
+    ./configure --prefix=${PREFIX} --enable-static --disable-shared --with-pic --without-python && \
+    make -j$(nproc) && \
+    make install
 
 RUN cd /tmp && \
     git clone https://github.com/strukturag/libde265.git && \
     cd libde265 && \
     ./autogen.sh && \
-    CFLAGS="-fPIC" ./configure --enable-static --disable-shared --with-pic && \
+    CFLAGS="-fPIC" ./configure --enable-static --disable-shared --with-pic --prefix=${PREFIX} && \
     make -j$(nproc) && \
     make install
 
@@ -28,44 +46,42 @@ RUN cd /tmp && \
     cmake .. \
         -DBUILD_SHARED_LIBS=OFF \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DCMAKE_INSTALL_PREFIX=${PREFIX} \
         -DCMAKE_INSTALL_LIBDIR=lib \
         -DWITH_LIBDE265=ON \
-        -DLIBDE265_INCLUDE_DIR=/usr/local/include \
-        -DLIBDE265_LIBRARY=/usr/local/lib/libde265.a && \
+        -DLIBDE265_INCLUDE_DIR=${PREFIX}/include \
+        -DLIBDE265_LIBRARY=${PREFIX}/lib/libde265.a && \
     make -j$(nproc) && \
     make install && \
-    # Verify libheif.pc includes -lde265
-    sed -i 's/^Libs:/& -lde265/' /usr/local/lib/pkgconfig/libheif.pc
-
-ENV PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"
+    sed -i 's/^Libs:/& -lde265/' ${PREFIX}/lib/pkgconfig/libheif.pc
 
 RUN cd /tmp && \
     wget https://www.imagemagick.org/download/ImageMagick.tar.gz && \
     tar xvzf ImageMagick.tar.gz && \
     cd ImageMagick-* && \
     ./configure \
-        --prefix=/usr/local \
+        --prefix=${PREFIX} \
         --with-heic=yes \
-        --with-tiff=false \
-        --with-webp=false \
+        --with-xml=yes \
+        --with-tiff=no \
+        --with-webp=no \
         --with-jpeg=yes \
-        --with-png=false \
+        --with-png=no \
         --disable-shared \
         --enable-static \
-        CPPFLAGS="-I/usr/local/include" \
-        LDFLAGS="-L/usr/local/lib" \
-        LIBS="-lde265" && \
+        CPPFLAGS="-I${PREFIX}/include" \
+        LDFLAGS="-L${PREFIX}/lib" \
+        LIBS="-lde265 -lxml2" && \
     make -j$(nproc) && \
     make install && \
-
-    cd /usr/local && \
+    cd ${PREFIX} && \
     tar czvf /tmp/imagemagick.tar.gz *
 
 # Run container to grab export and/or verify install
 FROM alpine AS export
 COPY --from=builder /tmp/imagemagick.tar.gz /imagemagick.tar.gz
 CMD ["sleep", "infinity"]
+
 
 # To get tar run
 # docker buildx build --platform linux/amd64 -t imagemagick-builder .
